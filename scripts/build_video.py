@@ -111,7 +111,7 @@ def main():
     run(["ffmpeg", "-y", "-f", "concat", "-safe", "0", "-i", vlist,
          "-c", "copy", full_video])
     run(["ffmpeg", "-y", "-f", "concat", "-safe", "0", "-i", alist,
-         "-c", "copy", full_audio])
+         "-c:a", "aac", "-b:a", "192k", full_audio])
 
     # 4. Mux narration over the video
     final = os.path.join(OUT_DIR, "final.mp4")
