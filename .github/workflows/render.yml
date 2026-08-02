@@ -41,7 +41,8 @@ jobs:
           mkdir -p output
           for f in scenes/*.py; do
             echo "=== Rendering $f ==="
-            manim -qm "$f" "*" --media_dir output/media || manim -ql "$f" "*" --media_dir output/media
+            python3 scripts/render_all.py "$f" output/media || \
+            python3 scripts/render_all.py "$f" output/media --ql
           done
 
       - name: Collect videos
