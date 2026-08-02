@@ -50,9 +50,9 @@ jobs:
         run: |
           BLENDER_DIR="/opt/blender-${BLENDER_VER}-linux-x64"
           # Blender's internal version dir uses MAJOR.MINOR (4.2), not full (4.2.3)
-          ADDON_DIR="$BLENDER_DIR/4.2/scripts/addons"
-          mkdir -p "$ADDON_DIR"
-          cp scripts/blender_mcp_addon.py "$ADDON_DIR/blender_mcp.py"
+          ADDON_DIR="/opt/blender-${BLENDER_VER}-linux-x64/4.2/scripts/addons"
+          sudo mkdir -p "$ADDON_DIR"
+          sudo cp scripts/blender_mcp_addon.py "$ADDON_DIR/blender_mcp.py"
           echo "Addon installed to: $ADDON_DIR/blender_mcp.py"
           ls -la "$ADDON_DIR/blender_mcp.py"
           # Install requests into Blender's Python
@@ -66,7 +66,7 @@ jobs:
           # Enable addon on first launch, then start
           BLENDER_DIR="/opt/blender-${BLENDER_VER}-linux-x64"
           BLENDER_PY="$BLENDER_DIR/4.2/python/bin/python3.11"
-          ADDON_DIR="$BLENDER_DIR/4.2/scripts/addons"
+          ADDON_DIR="/opt/blender-${BLENDER_VER}-linux-x64/4.2/scripts/addons"
           mkdir -p "$HOME/.config/blender/${BLENDER_VER}/scripts/startup"
           cp "$ADDON_DIR/blender_mcp.py" "$HOME/.config/blender/${BLENDER_VER}/scripts/startup/" 2>/dev/null || true
 
