@@ -22,6 +22,12 @@ jobs:
         with:
           python-version: '3.12'
 
+      - name: Install system libraries (needed by manim)
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ffmpeg libcairo2-dev libpango1.0-dev \
+            libgirepository1.0-dev pkg-config python3-dev
+
       - name: Install manim
         run: pip install --quiet manim
 
