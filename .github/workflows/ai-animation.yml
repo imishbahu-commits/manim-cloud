@@ -1,0 +1,54 @@
+name: AI Animation Studio (HuggingFace GPU)
+
+on:
+  workflow_dispatch:
+    inputs:
+      topic:
+        description: 'Video topic / title'
+        required: true
+        default: 'Why It Sucks to Be a Gladiator'
+      style:
+        description: 'Animation style'
+        required: false
+        default: 'oversimplified'
+        type: choice
+        options:
+          - oversimplified
+          - storybook
+          - comic
+          - anime
+
+jobs:
+  generate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    env:
+      HF_TOKEN: ${{ secrets.HF_TOKEN }}
+      TOPIC: ${{ github.event.inputs.topic }}
+      STYLE: ${{ github.event.inputs.style }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with: { python-version: '3.12' }
+
+      - name: Install deps
+        run: pip install --quiet requests pillow edge-tts
+
+      - name: Generate frames via HuggingFace SDXL (free GPU)
+        run: |
+          python3 scripts/hf_frames.py "$TOPIC" "$STYLE"
+        env:
+          HF_TOKEN: ${{ env.HF_TOKEN }}
+
+      - name: Ken Burns + voiceover + stitch
+        run: |
+          python3 scripts/assemble_video.py "$TOPIC"
+
+      - name: Upload final video
+        uses: actions/upload-artifact@v4
+        with:
+          name: ai-video-${{ github.event.inputs.topic }}
+          path: output/final.mp4
+          if-no-files-found: error
