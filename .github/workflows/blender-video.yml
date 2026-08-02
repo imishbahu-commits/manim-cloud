@@ -48,15 +48,17 @@ jobs:
 
       - name: Install addon + Python deps
         run: |
-          BLENDER_PY="/opt/blender-${BLENDER_VER}-linux-x64/${BLENDER_VER}/python/bin/python3.11"
-          ADDON_DIR="/opt/blender-${BLENDER_VER}-linux-x64/${BLENDER_VER}/scripts/addons"
-          cp /root/blender-mcp/addon.py "$ADDON_DIR/blender_mcp.py" 2>/dev/null || \
-            cp scripts/blender_drive.py /dev/null  # placeholder if addon not in repo
-          # Install requests into Blender's Python (addon needs it)
+          BLENDER_DIR="/opt/blender-${BLENDER_VER}-linux-x64"
+          ADDON_DIR="$BLENDER_DIR/${BLENDER_VER}/scripts/addons"
+          # Install addon into Blender's addons directory
+          cp scripts/blender_mcp_addon.py "$ADDON_DIR/blender_mcp.py"
+          echo "Addon installed to: $ADDON_DIR/blender_mcp.py"
+          ls -la "$ADDON_DIR/blender_mcp.py"
+          # Install requests into Blender's Python
+          BLENDER_PY="$BLENDER_DIR/${BLENDER_VER}/python/bin/python3.11"
           "$BLENDER_PY" -m ensurepip --upgrade 2>/dev/null || true
           "$BLENDER_PY" -m pip install requests 2>/dev/null || true
-          # Install MCP client deps for our drive script
-          pip install --quiet mcp httpx sse-starlette 2>/dev/null || true
+          pip install --quiet edge-tts
 
       - name: Start Blender + addon via Xvfb
         run: |
