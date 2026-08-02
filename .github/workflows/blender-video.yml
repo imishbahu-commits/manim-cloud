@@ -1,0 +1,164 @@
+name: Blender MCP Video Studio
+
+on:
+  workflow_dispatch:
+    inputs:
+      topic:
+        description: 'Animation topic'
+        required: true
+        default: 'Why It Sucks to Be a Gladiator'
+      duration:
+        description: 'Video length in seconds'
+        required: false
+        default: '40'
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    env:
+      BLENDER_VER: "4.2.3"
+      BLEND_DIR: /tmp/blender_out
+      TOPIC: ${{ github.event.inputs.topic }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with: { python-version: '3.12' }
+
+      - name: Install system deps
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq xvfb libgl1 libegl1 libxkbcommon0 \
+            libxxf86vm1 libxi6 libxrender1 libxfixes3 libgomp1 libxrandr2 \
+            libxcursor1 libxinerama1 libfontconfig1 libfreetype6 libosmesa6 \
+            ffmpeg curl wget unzip
+
+      - name: Download Blender ${{ env.BLENDER_VER }}
+        run: |
+          if [ ! -f /usr/local/bin/blender ]; then
+            URL="https://download.blender.org/release/Blender4.2/blender-${BLENDER_VER}-linux-x64.tar.xz"
+            wget -q "$URL" -O /tmp/blender.tar.xz
+            sudo tar xf /tmp/blender.tar.xz -C /opt/
+            sudo ln -sf /opt/blender-${BLENDER_VER}-linux-x64/blender /usr/local/bin/blender
+            sudo mkdir -p /opt/blender-${BLENDER_VER}-linux-x64/python/bin
+            echo "BLENDER INSTALLED" && blender --version | head -2
+          fi
+
+      - name: Install addon + Python deps
+        run: |
+          BLENDER_PY="/opt/blender-${BLENDER_VER}-linux-x64/${BLENDER_VER}/python/bin/python3.11"
+          ADDON_DIR="/opt/blender-${BLENDER_VER}-linux-x64/${BLENDER_VER}/scripts/addons"
+          cp /root/blender-mcp/addon.py "$ADDON_DIR/blender_mcp.py" 2>/dev/null || \
+            cp scripts/blender_drive.py /dev/null  # placeholder if addon not in repo
+          # Install requests into Blender's Python (addon needs it)
+          "$BLENDER_PY" -m ensurepip --upgrade 2>/dev/null || true
+          "$BLENDER_PY" -m pip install requests 2>/dev/null || true
+          # Install MCP client deps for our drive script
+          pip install --quiet mcp httpx sse-starlette 2>/dev/null || true
+
+      - name: Start Blender + addon via Xvfb
+        run: |
+          # Enable addon on first launch, then start
+          BLENDER_DIR="/opt/blender-${BLENDER_VER}-linux-x64"
+          BLENDER_PY="$BLENDER_DIR/${BLENDER_VER}/python/bin/python3.11"
+          ADDON_DIR="$BLENDER_DIR/${BLENDER_VER}/scripts/addons"
+          mkdir -p "$HOME/.config/blender/${BLENDER_VER}/scripts/startup"
+          cp "$ADDON_DIR/blender_mcp.py" "$HOME/.config/blender/${BLENDER_VER}/scripts/startup/" 2>/dev/null || true
+
+          # Launch Blender with Xvfb in background
+          xvfb-run -a --server-args="-screen 0 1920x1080x24" \
+            blender --python-expr "
+          import bpy, sys
+          # Enable MCP addon
+          bpy.ops.preferences.addon_enable(module='blender_mcp')
+          bpy.ops.preferences.addon_enable(module='blender_mcp')
+          print('ADDON ENABLED')
+          # Start socket server
+          import socket
+          import time
+          bpy.ops.wm.save_userpref()
+          # Start server via the addon's operator
+          try:
+              bpy.ops.blendermcp.start_server()
+              print('MCP SERVER STARTED on port 9876')
+          except Exception as e:
+              print(f'Start failed: {e}')
+              # Manual fallback: start socket server directly
+              from blender_mcp import BlenderMCPServer
+              server = BlenderMCPServer(host='localhost', port=9876)
+              server.start()
+              print('MCP SERVER STARTED (fallback)')
+          # Keep Blender running
+          print('BLENDER_READY')
+          while True:
+              time.sleep(1)
+          " &
+          BLENDER_PID=$!
+          echo $BLENDER_PID > /tmp/blender.pid
+
+          # Wait for addon to start
+          for i in $(seq 1 30); do
+            if timeout 1 bash -c "echo > /dev/tcp/localhost/9876" 2>/dev/null; then
+              echo "Addon ready on port 9876"
+              break
+            fi
+            sleep 1
+          done
+
+      - name: Build scene via MCP socket
+        run: |
+          python3 scripts/blender_drive.py
+
+      - name: Render segments (headless)
+        run: |
+          xvfb-run -a --server-args="-screen 0 1920x1080x24" \
+            blender -b /tmp/blender_out/scene.blend \
+            -P scripts/blender_scene.py -- --render-only \
+            --render.frame_start=1 --render.frame_end=1080 \
+            --engine BLENDER_EEVEE_NEXT
+
+      - name: Voiceover (edge-tts)
+        run: |
+          pip install --quiet edge-tts
+          mkdir -p output/audio
+          # Narration for each segment
+          echo "Why it sucks to be a gladiator." > narration.txt
+          echo "The colosseum. Thousands cheer as you enter the sand." >> narration.txt
+          echo "Fighting to the death for the crowd's entertainment." >> narration.txt
+          echo "This is you. A slave with a sword. Fighting for your life." >> narration.txt
+          I=1; DURS="8 10 10 8"
+          for LINE in $(cat narration.txt); do
+            DUR=$(echo $DURS | cut -d' ' -f$I)
+            edge-tts --voice en-US-ChristopherNeural --text "$(head -$I narration.txt | tail -1)" \
+              --write-media output/audio/raw_$(printf "%02d" $I).mp3
+            I=$((I+1))
+          done
+
+      - name: Stitch final video
+        run: |
+          mkdir -p output
+          for i in 1 2 3 4; do
+            DUR=$(echo "8 10 10 8" | cut -d' ' -f$i)
+            ffmpeg -y -framerate 30 -i /tmp/blender_out/seg${i}/frame_%04d.png \
+              -c:v libx264 -pix_fmt yuv420p -t $DUR \
+              output/vid_${i}.mp4 2>/dev/null
+          done
+          # Concat videos
+          for i in 1 2 3 4; do echo "file 'vid_${i}.mp4'"; done > output/vlist.txt
+          ffmpeg -y -f concat -safe 0 -i output/vlist.txt -c copy output/full_video.mp4
+          # Voiceover
+          for i in 1 2 3 4; do echo "file 'audio/raw_$(printf "%02d" $i).mp3'"; done > output/alist.txt
+          ffmpeg -y -f concat -safe 0 -i output/alist.txt -c:a aac -b:a 192k output/audio.mp4
+          # Final merge
+          ffmpeg -y -i output/full_video.mp4 -i output/audio.mp4 \
+            -c:v copy -c:a aac -shortest output/final.mp4
+          echo "DONE: $(ls -la output/final.mp4)"
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: blender-video
+          path: output/final.mp4
+          if-no-files-found: error
