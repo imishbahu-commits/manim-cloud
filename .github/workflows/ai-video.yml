@@ -37,7 +37,7 @@ jobs:
             libgirepository1.0-dev pkg-config python3-dev
 
       - name: Install Lottie stack (high quality)
-        run: pip install --quiet lottie rlottie-python pillow
+        run: pip install --quiet pillow
 
       - name: Install Manim (fallback)
         run: pip install --quiet manim edge-tts || true

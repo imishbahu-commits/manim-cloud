@@ -52,32 +52,31 @@ def to_json(data):
 
 
 def render_scene_json(json_str, scene_idx, out_dir):
-    """Render a Lottie JSON string to PNG frames, then to MP4 via rlottie."""
-    import rlottie
-    from PIL import Image
+    """Render a Lottie JSON string to PNG frames, then to MP4 via custom renderer."""
+    from mini_render import render_frame
+    anim = json.loads(json_str)
+    layers = anim.get("layers", [])
+    fps = anim.get("fr", 30)
+    total_frames = anim.get("op", 300)
 
     frames_dir = os.path.join(out_dir, f"frames_{scene_idx:02d}")
     os.makedirs(frames_dir, exist_ok=True)
 
-    print(f"  Rendering scene {scene_idx}...")
-    try:
-        frames = rlottie.render(json_str, width=WIDTH, height=HEIGHT)
-    except Exception as e:
-        print(f"  rlottie error: {e}")
-        # Fallback: black frame
-        frames = [Image.new("RGB", (WIDTH, HEIGHT), (18, 26, 40))]
-
-    print(f"  Got {len(frames)} frames")
-    for i, img in enumerate(frames):
-        img.save(os.path.join(frames_dir, f"frame_{i:04d}.png"))
+    print(f"  Rendering scene {scene_idx}: {total_frames} frames @ {fps}fps...")
+    for f in range(total_frames):
+        time_ms = int(f * 1000 / fps)
+        img = render_frame(layers, WIDTH, HEIGHT, time_ms)
+        img.save(os.path.join(frames_dir, f"frame_{f:04d}.png"))
+        if f % 50 == 0:
+            print(f"    frame {f}/{total_frames}")
+    print(f"  {total_frames} frames rendered")
 
     # ffmpeg → MP4
     vid = os.path.join(out_dir, f"scene_{scene_idx:02d}.mp4")
     run([
-        "ffmpeg", "-y", "-framerate", str(FPS),
+        "ffmpeg", "-y", "-framerate", str(fps),
         "-i", os.path.join(frames_dir, "frame_%04d.png"),
         "-c:v", "libx264", "-pix_fmt", "yuv420p", "-crf", "18",
-        "-vf", f"scale={WIDTH}:{HEIGHT}:force_original_aspect_ratio=decrease,pad={WIDTH}:{HEIGHT}:(ow-iw)/2:(oh-ih)/2",
         vid,
     ])
     return vid
