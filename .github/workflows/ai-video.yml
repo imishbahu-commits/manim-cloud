@@ -39,8 +39,8 @@ jobs:
       - name: Render scenes
         run: |
           mkdir -p output
-          manim -qm "videos/${{ github.event.inputs.video_name }}/scenes.py" \
-            --media_dir media || manim -ql "videos/${{ github.event.inputs.video_name }}/scenes.py" --media_dir media
+          manim -qm "videos/${{ github.event.inputs.video_name }}/scenes.py" "*" \
+            --media_dir media || manim -ql "videos/${{ github.event.inputs.video_name }}/scenes.py" "*" --media_dir media
           find media -name '*.mp4' | sort
 
       - name: Generate voiceover + assemble video
