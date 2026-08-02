@@ -1,17 +1,12 @@
 #!/usr/bin/env python3
 """
-lottie_video.py — Professional Lottie animation → video pipeline.
-
-Renders Lottie animations to PNG frames via rlottie, adds AI voiceover,
-and stitches into a final narrated MP4. Much higher quality than Manim.
+lottie_video.py — Lottie animation → video pipeline (zero API risk).
+Accepts either:
+  - lottie Animation objects (if lottie lib installed)
+  - Pure JSON dicts from lottie_builder.py
 
 Usage:  python3 scripts/lottie_video.py <video_name>
-Setup:  pip install lottie rlottie pillow
 Output: output/final.mp4
-
-videos/<name>/
-  scenes.py     — must define scenes() returning list of Animation objects
-  narration.txt — one narration line per scene
 """
 
 import importlib.util
@@ -29,91 +24,83 @@ FPS    = int(os.environ.get("VIDEO_FPS",    "30"))
 
 
 def run(cmd):
-    print(">>", " ".join(cmd))
-    subprocess.run(cmd, check=True, capture_output=True)
+    print(">>", " ".join(str(c) for c in cmd))
+    result = subprocess.run(cmd, capture_output=True, text=True)
+    if result.returncode != 0:
+        print("STDERR:", result.stderr[-500:])
+        raise subprocess.CalledProcessError(result.returncode, cmd)
+    return result
 
 
-def anim_to_json(anim):
-    """Convert a lottie Animation object to JSON string."""
+def to_json(data):
+    """Convert to JSON string — handles dicts, lottie objects, or raw JSON."""
+    if isinstance(data, str):
+        return data
+    if isinstance(data, dict):
+        return json.dumps(data, separators=(",", ":"))
+    # Try lottie library export
     try:
         from lottie.exporters import LottieJsonExporter
-        return LottieJsonExporter(anim).export()
+        return LottieJsonExporter(data).export()
     except Exception:
         pass
     try:
-        return json.dumps(anim.to_dict(), indent=None)
+        return json.dumps(data.to_dict(), separators=(",", ":"))
     except Exception:
         pass
-    try:
-        from lottie.utils import json_dumps
-        return json_dumps(anim)
-    except Exception:
-        pass
-    try:
-        return json.dumps(anim)
-    except Exception:
-        raise RuntimeError("Cannot export Lottie Animation to JSON — "
-                           "check lottie library version")
+    return json.dumps(data)
 
 
-def render_frames(json_str, width, height, fps, duration_ms):
-    """Render Lottie JSON to PNG frames via rlottie."""
+def render_scene_json(json_str, scene_idx, out_dir):
+    """Render a Lottie JSON string to PNG frames, then to MP4 via rlottie."""
     import rlottie
     from PIL import Image
-    import io
 
-    frames = []
-    n_frames = max(1, int(duration_ms / 1000 * fps))
-    out = rlottie.render(json_str, width=width, height=height)
-    # rlottie.render may return fewer frames than requested
-    for img in out:
-        frames.append(img)
-    return frames
+    frames_dir = os.path.join(out_dir, f"frames_{scene_idx:02d}")
+    os.makedirs(frames_dir, exist_ok=True)
 
+    print(f"  Rendering scene {scene_idx}...")
+    try:
+        frames = rlottie.render(json_str, width=WIDTH, height=HEIGHT)
+    except Exception as e:
+        print(f"  rlottie error: {e}")
+        # Fallback: black frame
+        frames = [Image.new("RGB", (WIDTH, HEIGHT), (18, 26, 40))]
 
-def save_frames(frames, tmpdir):
-    """Save PIL Images as numbered PNGs."""
+    print(f"  Got {len(frames)} frames")
     for i, img in enumerate(frames):
-        img.save(os.path.join(tmpdir, f"frame_{i:04d}.png"))
+        img.save(os.path.join(frames_dir, f"frame_{i:04d}.png"))
 
-
-def frames_to_video(frames_dir, n_frames, output_mp4, fps):
-    """ffmpeg PNG sequence → MP4."""
+    # ffmpeg → MP4
+    vid = os.path.join(out_dir, f"scene_{scene_idx:02d}.mp4")
     run([
-        "ffmpeg", "-y", "-framerate", str(fps),
+        "ffmpeg", "-y", "-framerate", str(FPS),
         "-i", os.path.join(frames_dir, "frame_%04d.png"),
-        "-c:v", "libx264", "-pix_fmt", "yuv420p",
-        "-vf", f"scale={WIDTH}:{HEIGHT}",
-        output_mp4,
+        "-c:v", "libx264", "-pix_fmt", "yuv420p", "-crf", "18",
+        "-vf", f"scale={WIDTH}:{HEIGHT}:force_original_aspect_ratio=decrease,pad={WIDTH}:{HEIGHT}:(ow-iw)/2:(oh-ih)/2",
+        vid,
     ])
+    return vid
 
 
-def generate_voiceover(narration_lines, audio_dir, scene_durations):
-    """Generate one voiceover MP3 per scene, padded to scene duration."""
+def generate_voiceover(narration_lines, audio_dir, scene_durations_ms):
+    """Generate AI voiceover per scene, padded to scene duration."""
     os.makedirs(audio_dir, exist_ok=True)
-    for i, (line, dur) in enumerate(zip(narration_lines, scene_durations), start=1):
-        raw_mp3 = os.path.join(audio_dir, f"raw_{i:02d}.mp3")
-        fit_mp3 = os.path.join(audio_dir, f"fit_{i:02d}.mp3")
-        run([
-            "edge-tts", "--voice", VOICE, "--text", line,
-            "--write-media", raw_mp3,
-        ])
-        # Get narration duration
-        out = subprocess.run(
+    for i, (line, dur_ms) in enumerate(zip(narration_lines, scene_durations_ms), start=1):
+        raw = os.path.join(audio_dir, f"raw_{i:02d}.mp3")
+        fit = os.path.join(audio_dir, f"fit_{i:02d}.mp3")
+        run(["edge-tts", "--voice", VOICE, "--text", line, "--write-media", raw])
+        tts_dur = float(subprocess.run(
             ["ffprobe", "-v", "error", "-show_entries", "format=duration",
-             "-of", "default=noprint_wrappers=1:nokey=1", raw_mp3],
-            capture_output=True, text=True,
-        )
-        tts_dur = float(out.stdout.strip())
-        target = dur / 1000.0  # scene duration in seconds
+             "-of", "default=noprint_wrappers=1:nokey=1", raw],
+            capture_output=True, text=True).stdout.strip())
+        target = dur_ms / 1000.0
         if tts_dur > target:
-            run(["ffmpeg", "-y", "-i", raw_mp3, "-t", f"{target:.3f}",
-                 "-c", "copy", fit_mp3])
+            run(["ffmpeg", "-y", "-i", raw, "-t", f"{target:.3f}", "-c", "copy", fit])
         else:
             pad = target - tts_dur
-            run(["ffmpeg", "-y", "-i", raw_mp3,
-                 "-af", f"apad=pad_dur={pad:.3f}",
-                 "-t", f"{target:.3f}", fit_mp3])
+            run(["ffmpeg", "-y", "-i", raw,
+                 "-af", f"apad=pad_dur={pad:.3f}", "-t", f"{target:.3f}", fit])
     return audio_dir
 
 
@@ -122,54 +109,47 @@ def main():
         sys.exit("Usage: python3 lottie_video.py <video_name>")
     NAME = sys.argv[1]
     ROOT = Path(__file__).resolve().parent.parent
-    VIDEO_DIR = ROOT / "videos" / NAME
-    OUT_DIR = ROOT / "output"
-    OUT_DIR.mkdir(exist_ok=True)
+    OUT  = ROOT / "output"
+    OUT.mkdir(exist_ok=True)
 
-    # Load scenes
-    scenes_py = VIDEO_DIR / "scenes.py"
+    # ── Load scenes ──
+    scenes_py = ROOT / "videos" / NAME / "scenes.py"
     spec = importlib.util.spec_from_file_location(f"scenes_{NAME}", str(scenes_py))
     mod = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(mod)
-    anims = mod.scenes()  # must return list of (Animation, duration_ms)
-    print(f"Loaded {len(anims)} scenes")
+    raw = mod.scenes()  # list of (dict_or_anim, duration_ms)
+    print(f"Loaded {len(raw)} scenes from {scenes_py.name}")
 
-    # Load narration
-    nar_lines = (VIDEO_DIR / "narration.txt").read_text().splitlines()
-    nar_lines = [l.strip() for l in nar_lines if l.strip()]
+    # ── Load narration ──
+    nar_path = ROOT / "videos" / NAME / "narration.txt"
+    nar_lines = [l.strip() for l in nar_path.read_text().splitlines() if l.strip()]
 
+    # ── Render each scene ──
     scene_vids = []
-    for i, (anim, dur_ms) in enumerate(anims, start=1):
-        print(f"\n--- Scene {i} ({dur_ms}ms) ---")
-        json_str = anim_to_json(anim)
-        with tempfile.TemporaryDirectory() as tmpdir:
-            frames = render_frames(json_str, WIDTH, HEIGHT, FPS, dur_ms)
-            if not frames:
-                print("WARNING: no frames rendered, creating black frame")
-                from PIL import Image
-                frames = [Image.new("RGB", (WIDTH, HEIGHT), (28, 28, 28))]
-            save_frames(frames, tmpdir)
-            vid = str(OUT_DIR / f"scene_{i:02d}.mp4")
-            frames_to_video(tmpdir, len(frames), vid, FPS)
-            scene_vids.append(vid)
+    durations = []
+    for i, (data, dur) in enumerate(raw, start=1):
+        json_str = to_json(data)
+        vid = render_scene_json(json_str, i, str(OUT))
+        scene_vids.append(vid)
+        durations.append(dur)
+        print(f"  Scene {i} done → {vid}")
 
-    # Voiceover
-    audio_dir = str(OUT_DIR / "audio")
-    scene_durs = [dur for _, dur in anims]
-    generate_voiceover(nar_lines, audio_dir, scene_durs)
+    # ── Voiceover ──
+    audio_dir = str(OUT / "audio")
+    generate_voiceover(nar_lines, audio_dir, durations)
 
-    # Concat scenes → full video
-    vlist = str(OUT_DIR / "vlist.txt")
-    alist = str(OUT_DIR / "alist.txt")
+    # ── Concat scenes → full video ──
+    vlist = str(OUT / "vlist.txt")
+    alist = str(OUT / "alist.txt")
     with open(vlist, "w") as vf, open(alist, "w") as af:
-        for vid in scene_vids:
-            vf.write(f"file '{vid}'\n")
+        for v in scene_vids:
+            vf.write(f"file '{v}'\n")
         for i in range(1, len(nar_lines) + 1):
             af.write(f"file '{audio_dir}/fit_{i:02d}.mp3'\n")
 
-    full_vid = str(OUT_DIR / "full_video.mp4")
-    full_aud = str(OUT_DIR / "full_audio.m4a")
-    final   = str(OUT_DIR / "final.mp4")
+    full_vid = str(OUT / "full_video.mp4")
+    full_aud = str(OUT / "full_audio.m4a")
+    final    = str(OUT / "final.mp4")
 
     run(["ffmpeg", "-y", "-f", "concat", "-safe", "0", "-i", vlist,
          "-c", "copy", full_vid])
@@ -178,7 +158,8 @@ def main():
     run(["ffmpeg", "-y", "-i", full_vid, "-i", full_aud,
          "-c:v", "copy", "-c:a", "aac", "-shortest", final])
 
-    print(f"\n✅ DONE → {final}")
+    size = os.path.getsize(final)
+    print(f"\n✅ DONE → {final} ({size / 1024:.0f} KB)")
 
 
 if __name__ == "__main__":

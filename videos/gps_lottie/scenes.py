@@ -1,241 +1,188 @@
 """
-GPS explainer — Professional Lottie animation (much higher quality than Manim).
-Defines scenes() returning list of (Animation, duration_ms) tuples.
-Uses lottie-python: smooth bezier easing, gradient fills, layered compositing.
+GPS explainer — Professional Lottie animation via pure JSON builder.
+No lottie library needed for creation; only rlottie for rendering.
+Smooth bezier easing, layered compositing, rich color palette.
 """
 
-from lottie.objects import Animation, ShapeLayer, Group, Ellipse, Fill, Stroke
-from lottie.objects.transform import Transform, Keyframe
-from lottie import Point, Color
+import sys, os
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "..", "scripts"))
 
-# Professional color palette (dark theme, rich colors)
-BG       = Color(0x12, 0x1A, 0x28)
-BLUE     = Color(0x4E, 0xA8, 0xF0)
-GREEN    = Color(0x5B, 0xC4, 0x7D)
-YELLOW   = Color(0xFF, 0xD7, 0x00)
-WHITE    = Color(0xFF, 0xFF, 0xFF)
-GRAY     = Color(0x55, 0x66, 0x77)
-DIM_BLUE = Color(0x1E, 0x3A, 0x5F)
+from lottie_builder import (
+    build_animation, ellipse, shape_layer, solid_layer,
+    anim_transform, _kf, _kf_last,
+    EASE_IN_OUT, SPRING, LINEAR, EASE_OUT,
+)
 
-
-def _ease_in_out():
-    """Cubic bezier ease-in-out."""
-    return "cubic-bezier(0.42, 0, 0.58, 1)"
-
-
-def _spring():
-    """Spring / elastic easing."""
-    return "cubic-bezier(0.34, 1.56, 0.64, 1)"
+# ──── Palette (dark theme, rich colors) ────
+BG      = [0.071, 0.102, 0.157, 1]     # #121A28
+BLUE    = [0.306, 0.659, 0.941, 1]     # #4EA8F0
+GREEN   = [0.357, 0.769, 0.490, 1]     # #5BC47D
+YELLOW  = [1.0,   0.843, 0.0,   1]     # #FFD700
+WHITE   = [1, 1, 1, 1]
+GRAY    = [0.333, 0.400, 0.478, 1]     # #556677
+DIM_BG  = [0.118, 0.227, 0.373, 1]     # #1E3A5F
 
 
-def make_bg_layer():
-    """Full-screen dark background."""
-    layer = ShapeLayer()
-    layer.name = "background"
-    rect = Group()
-    r = Ellipse()
-    r.size = Point(1, 1)
-    r.position = Point(960, 540)
-    r.add_style(Fill(color=BG))
-    r.add_style(Stroke(color=BG, width=2200))
-    rect.add_shape(r)
-    layer.add_shape(rect)
-    layer.transform = Transform()
-    layer.transform.opacity.value = 100
-    return layer
+def _bg():
+    return solid_layer("bg", "#121A28", opacity=100)
 
 
-def scene1_title():
-    """Scene 1: Title reveal with smooth fade-in + satellite orbit."""
-    anim = Animation(width=1920, height=1080, framerate=30, duration=10000)
-    anim.add_layer(make_bg_layer())
+# ══════════════════════════════════════════════════════════
+#  SCENE 1 — Title reveal with orbiting satellite (10s)
+# ══════════════════════════════════════════════════════════
+def scene1():
+    dur = 10000
+    layers = [_bg()]
 
-    # ---- Main title circle background ----
-    title_layer = ShapeLayer()
-    title_layer.name = "title_back"
-    circle = Ellipse()
-    circle.size = Point(1, 1)
-    circle.position = Point(960, 400)
-    circle.add_style(Fill(color=DIM_BLUE))
-    circle.add_style(Stroke(color=BLUE, width=3))
-    title_layer.add_shape(circle)
-    t = title_layer.transform = Transform()
-    t.position.value = Point(960, 400)
-    t.scale.value = Point(0, 0)
-    t.scale.add_keyframe(0, Point(0, 0), _ease_in_out())
-    t.scale.add_keyframe(1200, Point(100, 100), _ease_in_out())
-    anim.add_layer(title_layer)
+    # Title circle — scales in from zero
+    layers.append(shape_layer("title_circle", [
+        ellipse(800, 800, fill=DIM_BG, stroke=BLUE, sw=3),
+    ], transform=anim_transform(
+        scale_kf=[_kf(0, [0, 0], EASE_IN_OUT), _kf(1500, [100, 100], EASE_IN_OUT)],
+        pos=(960, 400),
+    ), end=dur))
 
-    # ---- Orbiting satellite dot ----
-    sat_layer = ShapeLayer()
-    sat_layer.name = "satellite"
-    sat = Ellipse()
-    sat.size = Point(24, 24)
-    sat.position = Point(960, 340)
-    sat.add_style(Fill(color=YELLOW))
-    sat.add_style(Stroke(color=YELLOW, width=2))
-    sat_layer.add_shape(sat)
-    st = sat_layer.transform = Transform()
-    st.opacity.value = 0
-    st.opacity.add_keyframe(0, 0, "linear")
-    st.opacity.add_keyframe(800, 100, "linear")
-    st.position.value = Point(960, 340)
-    st.position.add_keyframe(0,    Point(960, 340), _ease_in_out())
-    st.position.add_keyframe(3000, Point(620, 320), _ease_in_out())
-    st.position.add_keyframe(6000, Point(1300, 420), _ease_in_out())
-    st.position.add_keyframe(9500, Point(960, 340), _ease_in_out())
-    anim.add_layer(sat_layer)
+    # Satellite — orbits around center
+    layers.append(shape_layer("satellite", [
+        ellipse(24, 24, fill=YELLOW),
+    ], transform=anim_transform(
+        opacity_kf=[_kf(0, 0), _kf(600, 100)],
+        pos_kf=[
+            _kf(0,    [960, 340], EASE_IN_OUT),
+            _kf(3000, [620, 320], EASE_IN_OUT),
+            _kf(6000, [1300, 420], EASE_IN_OUT),
+            _kf(9500, [960, 340], EASE_IN_OUT),
+        ],
+    ), end=dur))
 
-    # ---- Signal ring expansion ----
-    ring_layer = ShapeLayer()
-    ring_layer.name = "signal"
-    ring = Ellipse()
-    ring.size = Point(24, 24)
-    ring.position = Point(960, 340)
-    ring.add_style(Stroke(color=BLUE, width=2))
-    ring_layer.add_shape(ring)
-    rt = ring_layer.transform = Transform()
-    rt.opacity.value = 0
-    rt.opacity.add_keyframe(1000, 60, "linear")
-    rt.opacity.add_keyframe(3000, 0, "linear")
-    rt.scale.value = Point(100, 100)
-    rt.scale.add_keyframe(1000, Point(100, 100), _ease_in_out())
-    rt.scale.add_keyframe(3000, Point(600, 600), _ease_in_out())
-    anim.add_layer(ring_layer)
+    # Signal ring — expands and fades
+    layers.append(shape_layer("signal_ring", [
+        ellipse(24, 24, stroke=BLUE, sw=2),
+    ], transform=anim_transform(
+        pos=(960, 340),
+        opacity_kf=[_kf(0, 0), _kf(1000, 60), _kf(3500, 0)],
+        scale_kf=[_kf(1000, [100, 100], EASE_IN_OUT), _kf(3500, [600, 600], EASE_IN_OUT)],
+    ), end=dur))
 
-    # ---- Phone icon (rounded rect) ----
-    phone_layer = ShapeLayer()
-    phone_layer.name = "phone"
-    p = Ellipse()
-    p.size = Point(60, 90)
-    p.position = Point(960, 560)
-    p.add_style(Fill(color=GRAY))
-    p.add_style(Stroke(color=BLUE, width=3))
-    phone_layer.add_shape(p)
-    pt = phone_layer.transform = Transform()
-    pt.opacity.value = 0
-    pt.opacity.add_keyframe(2500, 0, "linear")
-    pt.opacity.add_keyframe(4000, 100, _ease_in_out())
-    pt.position.value = Point(960, 560)
-    pt.position.add_keyframe(2500, Point(960, 640), _ease_in_out())
-    pt.position.add_keyframe(4000, Point(960, 560), _ease_in_out())
-    anim.add_layer(phone_layer)
+    # Second signal ring (offset)
+    layers.append(shape_layer("signal_ring2", [
+        ellipse(24, 24, stroke=BLUE, sw=2),
+    ], transform=anim_transform(
+        pos=(960, 340),
+        opacity_kf=[_kf(0, 0), _kf(2000, 40), _kf(4500, 0)],
+        scale_kf=[_kf(2000, [100, 100], EASE_IN_OUT), _kf(4500, [500, 500], EASE_IN_OUT)],
+    ), end=dur))
 
-    return anim, 10000
+    # Phone icon — slides up from bottom
+    layers.append(shape_layer("phone", [
+        ellipse(60, 90, fill=GRAY, stroke=BLUE, sw=3),
+    ], transform=anim_transform(
+        opacity_kf=[_kf(0, 0), _kf(3500, 100)],
+        pos_kf=[_kf(2500, [960, 640], EASE_IN_OUT), _kf(4000, [960, 560], EASE_IN_OUT)],
+        pos=(960, 560),
+    ), end=dur))
+
+    # Label text (simulated as dot for now — real text needs font embedding)
+    layers.append(shape_layer("label", [
+        ellipse(4, 4, fill=WHITE),
+    ], transform=anim_transform(
+        pos=(960, 700),
+        opacity_kf=[_kf(0, 0), _kf(5000, 90)],
+    ), end=dur))
+
+    return build_animation(layers, duration_ms=dur)
 
 
-def scene2_trilateration():
-    """Scene 2: Three satellites + expanding trilateration circles."""
-    anim = Animation(width=1920, height=1080, framerate=30, duration=12000)
-    anim.add_layer(make_bg_layer())
+# ══════════════════════════════════════════════════════════
+#  SCENE 2 — Trilateration circles (12s)
+# ══════════════════════════════════════════════════════════
+def scene2():
+    dur = 12000
+    layers = [_bg()]
 
     satellites = [
-        (420, 280, BLUE),
-        (1500, 300, GREEN),
-        (960, 780, YELLOW),
+        (420, 280, BLUE,  0),
+        (1500, 300, GREEN, 2000),
+        (960, 780, YELLOW, 4000),
     ]
 
-    for idx, (sx, sy, color) in enumerate(satellites):
-        delay = idx * 1800
+    for sx, sy, col, delay in satellites:
+        # Satellite dot — springs in
+        layers.append(shape_layer(f"sat_{sx}_{sy}", [
+            ellipse(22, 22, fill=col, stroke=col, sw=2),
+        ], transform=anim_transform(
+            pos=(sx, sy),
+            opacity_kf=[_kf(delay, 0), _kf(delay + 600, 100)],
+            scale_kf=[_kf(delay, [0, 0], SPRING), _kf(delay + 600, [100, 100], SPRING)],
+        ), end=dur))
 
-        # Satellite dot
-        sat_layer = ShapeLayer()
-        sat_layer.name = f"sat_{idx}"
-        dot = Ellipse()
-        dot.size = Point(22, 22)
-        dot.position = Point(sx, sy)
-        dot.add_style(Fill(color=color))
-        dot.add_style(Stroke(color=color, width=2))
-        sat_layer.add_shape(dot)
-        dt = sat_layer.transform = Transform()
-        dt.opacity.value = 0
-        dt.opacity.add_keyframe(delay, 0, "linear")
-        dt.opacity.add_keyframe(delay + 600, 100, _ease_in_out())
-        dt.scale.value = Point(0, 0)
-        dt.scale.add_keyframe(delay, Point(0, 0), _spring())
-        dt.scale.add_keyframe(delay + 600, Point(100, 100), _spring())
-        anim.add_layer(sat_layer)
+        # Expanding circle — ease-in-out
+        layers.append(shape_layer(f"circle_{sx}_{sy}", [
+            ellipse(20, 20, stroke=col, sw=3),
+        ], transform=anim_transform(
+            pos=(sx, sy),
+            opacity_kf=[_kf(delay + 400, 0), _kf(delay + 800, 70)],
+            scale_kf=[_kf(delay + 400, [100, 100], EASE_IN_OUT), _kf(delay + 3000, [1400, 1400], EASE_IN_OUT)],
+        ), end=dur))
 
-        # Expanding trilateration circle
-        circle_layer = ShapeLayer()
-        circle_layer.name = f"circle_{idx}"
-        circ = Ellipse()
-        circ.size = Point(20, 20)
-        circ.position = Point(sx, sy)
-        circ.add_style(Stroke(color=color, width=3, opacity=50))
-        circle_layer.add_shape(circ)
-        ct = circle_layer.transform = Transform()
-        ct.opacity.value = 0
-        ct.opacity.add_keyframe(delay + 400, 0, "linear")
-        ct.opacity.add_keyframe(delay + 800, 70, _ease_in_out())
-        ct.scale.value = Point(100, 100)
-        ct.scale.add_keyframe(delay + 400, Point(100, 100), _ease_in_out())
-        ct.scale.add_keyframe(delay + 2400, Point(1400, 1400), _ease_in_out())
-        anim.add_layer(circle_layer)
-
-    return anim, 12000
+    return build_animation(layers, duration_ms=dur)
 
 
-def scene3_you():
-    """Scene 3: Intersection marker with pulse + 'That\\'s you!' reveal."""
-    anim = Animation(width=1920, height=1080, framerate=30, duration=10000)
-    anim.add_layer(make_bg_layer())
+# ══════════════════════════════════════════════════════════
+#  SCENE 3 — "That's you!" intersection marker (10s)
+# ══════════════════════════════════════════════════════════
+def scene3():
+    dur = 10000
+    layers = [_bg()]
 
-    # ---- Faint circles (background trilateration) ----
-    bg_circles = ShapeLayer()
-    bg_circles.name = "bg_circles"
-    for (sx, sy), col in [
-        ((420, 280), BLUE), ((1500, 300), GREEN), ((960, 780), YELLOW)
-    ]:
-        c = Ellipse()
-        c.size = Point(20, 20)
-        c.position = Point(sx, sy)
-        c.add_style(Stroke(color=col, width=2, opacity=30))
-        bg_circles.add_shape(c)
-    bt = bg_circles.transform = Transform()
-    bt.opacity.value = 0
-    bt.opacity.add_keyframe(0, 0, "linear")
-    bt.opacity.add_keyframe(1000, 100, _ease_in_out())
-    anim.add_layer(bg_circles)
+    # Faint background circles
+    for sx, sy, col in [(420, 280, BLUE), (1500, 300, GREEN), (960, 780, YELLOW)]:
+        layers.append(shape_layer(f"bg_{sx}_{sy}", [
+            ellipse(20, 20, stroke=col, sw=2),
+        ], transform=anim_transform(
+            pos=(sx, sy),
+            opacity_kf=[_kf(0, 0), _kf(800, 35)],
+            scale_kf=[_kf(0, [800, 800], EASE_IN_OUT)],
+        ), end=dur))
 
-    # ---- Intersection dot ----
-    dot_layer = ShapeLayer()
-    dot_layer.name = "intersection"
-    d = Ellipse()
-    d.size = Point(18, 18)
-    d.position = Point(880, 440)
-    d.add_style(Fill(color=WHITE))
-    d.add_style(Stroke(color=WHITE, width=4))
-    dot_layer.add_shape(d)
-    dt = dot_layer.transform = Transform()
-    dt.opacity.value = 0
-    dt.opacity.add_keyframe(800, 0, "linear")
-    dt.opacity.add_keyframe(1500, 100, _ease_in_out())
-    dt.scale.value = Point(0, 0)
-    dt.scale.add_keyframe(800, Point(0, 0), _spring())
-    dt.scale.add_keyframe(1500, Point(100, 100), _spring())
-    anim.add_layer(dot_layer)
+    # Intersection dot — springs in
+    layers.append(shape_layer("intersection", [
+        ellipse(18, 18, fill=WHITE, stroke=WHITE, sw=4),
+    ], transform=anim_transform(
+        pos=(880, 440),
+        opacity_kf=[_kf(800, 0), _kf(1500, 100)],
+        scale_kf=[_kf(800, [0, 0], SPRING), _kf(1500, [100, 100], SPRING)],
+    ), end=dur))
 
-    # ---- Pulse ring ----
-    pulse = ShapeLayer()
-    pulse.name = "pulse"
-    pr = Ellipse()
-    pr.size = Point(18, 18)
-    pr.position = Point(880, 440)
-    pr.add_style(Stroke(color=WHITE, width=3))
-    pulse.add_shape(pr)
-    pt = pulse.transform = Transform()
-    pt.opacity.value = 0
-    pt.opacity.add_keyframe(1800, 80, "linear")
-    pt.opacity.add_keyframe(3500, 0, "linear")
-    pt.scale.value = Point(100, 100)
-    pt.scale.add_keyframe(1800, Point(100, 100), _ease_in_out())
-    pt.scale.add_keyframe(3500, Point(700, 700), _ease_in_out())
-    anim.add_layer(pulse)
+    # Pulse ring — expanding
+    layers.append(shape_layer("pulse", [
+        ellipse(18, 18, stroke=WHITE, sw=3),
+    ], transform=anim_transform(
+        pos=(880, 440),
+        opacity_kf=[_kf(1800, 80), _kf(4000, 0)],
+        scale_kf=[_kf(1800, [100, 100], EASE_IN_OUT), _kf(4000, [700, 700], EASE_IN_OUT)],
+    ), end=dur))
 
-    return anim, 10000
+    # Second pulse ring
+    layers.append(shape_layer("pulse2", [
+        ellipse(18, 18, stroke=BLUE, sw=2),
+    ], transform=anim_transform(
+        pos=(880, 440),
+        opacity_kf=[_kf(2500, 60), _kf(5000, 0)],
+        scale_kf=[_kf(2500, [100, 100], EASE_IN_OUT), _kf(5000, [900, 900], EASE_IN_OUT)],
+    ), end=dur))
+
+    # Arrow pointing down
+    layers.append(shape_layer("arrow", [
+        ellipse(8, 40, fill=WHITE),
+    ], transform=anim_transform(
+        pos=(880, 510),
+        opacity_kf=[_kf(3500, 0), _kf(4200, 100)],
+        pos_kf=[_kf(3500, [880, 440], EASE_IN_OUT), _kf(4200, [880, 520], EASE_IN_OUT)],
+    ), end=dur))
+
+    return build_animation(layers, duration_ms=dur)
 
 
 def scenes():
-    """Return all scenes for the GPS explainer."""
-    return [scene1_title(), scene2_trilateration(), scene3_you()]
+    return [(scene1(), 10000), (scene2(), 12000), (scene3(), 10000)]
