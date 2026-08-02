@@ -1,0 +1,3 @@
+Ever wondered how your phone always knows exactly where you are?
+GPS measures your precise distance from three satellites in space.
+Where all three signals meet, that point is you. That's how GPS finds you.
