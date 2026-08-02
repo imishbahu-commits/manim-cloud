@@ -1,0 +1,417 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Hermes Blender Animation Studio</title>
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
+            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%);
+            color: #e8e8e8;
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 20px;
+        }
+        
+        .container {
+            max-width: 800px;
+            width: 100%;
+            background: rgba(255,255,255,0.05);
+            border-radius: 20px;
+            padding: 40px;
+            box-shadow: 0 8px 32px rgba(0,0,0,0.3);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255,255,255,0.1);
+        }
+        
+        h1 {
+            text-align: center;
+            margin-bottom: 10px;
+            font-size: 2.2em;
+            background: linear-gradient(90deg, #f39c12, #e74c3c, #9b59b6);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+        
+        .subtitle {
+            text-align: center;
+            color: #888;
+            margin-bottom: 30px;
+            font-size: 0.95em;
+        }
+        
+        .form-group {
+            margin-bottom: 25px;
+        }
+        
+        label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: 600;
+            color: #f39c12;
+        }
+        
+        textarea, input[type="text"], select {
+            width: 100%;
+            padding: 15px;
+            border: 2px solid rgba(255,255,255,0.1);
+            border-radius: 12px;
+            background: rgba(0,0,0,0.3);
+            color: #fff;
+            font-size: 1em;
+            transition: border-color 0.3s;
+        }
+        
+        textarea:focus, input:focus, select:focus {
+            outline: none;
+            border-color: #f39c12;
+        }
+        
+        textarea {
+            min-height: 150px;
+            resize: vertical;
+            font-family: inherit;
+        }
+        
+        .settings-row {
+            display: grid;
+            grid-template-columns: 1fr 1fr 1fr;
+            gap: 20px;
+        }
+        
+        @media (max-width: 600px) {
+            .settings-row {
+                grid-template-columns: 1fr;
+            }
+        }
+        
+        .generate-btn {
+            width: 100%;
+            padding: 18px;
+            background: linear-gradient(135deg, #f39c12 0%, #e74c3c 100%);
+            border: none;
+            border-radius: 12px;
+            color: white;
+            font-size: 1.2em;
+            font-weight: bold;
+            cursor: pointer;
+            transition: transform 0.2s, box-shadow 0.2s;
+            margin-top: 10px;
+        }
+        
+        .generate-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(243, 156, 18, 0.4);
+        }
+        
+        .generate-btn:disabled {
+            background: #555;
+            cursor: not-allowed;
+            transform: none;
+        }
+        
+        .progress-container {
+            margin-top: 30px;
+            display: none;
+        }
+        
+        .progress-bar {
+            height: 20px;
+            background: rgba(0,0,0,0.3);
+            border-radius: 10px;
+            overflow: hidden;
+            margin-bottom: 10px;
+        }
+        
+        .progress-fill {
+            height: 100%;
+            background: linear-gradient(90deg, #f39c12, #2ecc71);
+            width: 0%;
+            transition: width 0.5s;
+            border-radius: 10px;
+        }
+        
+        .status-text {
+            text-align: center;
+            color: #888;
+            font-size: 0.9em;
+        }
+        
+        .result-container {
+            margin-top: 30px;
+            display: none;
+            text-align: center;
+        }
+        
+        .download-btn {
+            display: inline-block;
+            padding: 15px 40px;
+            background: linear-gradient(135deg, #2ecc71 0%, #27ae60 100%);
+            color: white;
+            text-decoration: none;
+            border-radius: 12px;
+            font-weight: bold;
+            margin: 10px;
+            transition: transform 0.2s;
+        }
+        
+        .download-btn:hover {
+            transform: scale(1.05);
+        }
+        
+        .video-preview {
+            width: 100%;
+            max-width: 640px;
+            border-radius: 12px;
+            margin: 20px auto;
+            display: block;
+            background: #000;
+        }
+        
+        .examples {
+            margin-top: 30px;
+            padding: 20px;
+            background: rgba(0,0,0,0.2);
+            border-radius: 12px;
+        }
+        
+        .examples h3 {
+            margin-bottom: 15px;
+            color: #f39c12;
+        }
+        
+        .example-btn {
+            display: inline-block;
+            padding: 8px 16px;
+            margin: 5px;
+            background: rgba(255,255,255,0.1);
+            border: 1px solid rgba(255,255,255,0.2);
+            border-radius: 20px;
+            color: #fff;
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+        
+        .example-btn:hover {
+            background: rgba(255,255,255,0.2);
+        }
+        
+        .error-msg {
+            color: #e74c3c;
+            padding: 15px;
+            background: rgba(231, 76, 60, 0.1);
+            border-radius: 10px;
+            margin-top: 20px;
+        }
+        
+        .powered {
+            text-align: center;
+            margin-top: 30px;
+            font-size: 0.85em;
+            color: #666;
+        }
+        
+        .powered img {
+            height: 20px;
+            vertical-align: middle;
+            margin: 0 5px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🎬 Hermes Animation Studio</h1>
+        <p class="subtitle">Create professional 3D animations from text prompts</p>
+        
+        <form id="generateForm">
+            <div class="form-group">
+                <label>📝 Your Animation Prompt</label>
+                <textarea id="prompt" placeholder="Describe your animation scene in detail...
+
+Example: Create a dramatic scene showing a gladiator entering the Roman Colosseum. The camera starts from a wide shot of the arena, then slowly pushes in as the gladiator walks through the dark gate into the sunlight. Add dramatic lighting and a crowd cheering in the background."></textarea>
+            </div>
+            
+            <div class="settings-row">
+                <div class="form-group">
+                    <label>🎨 Style</label>
+                    <select id="style">
+                        <option value="oversimplified">OverSimplified (2D)</option>
+                        <option value="3d_realistic">3D Realistic</option>
+                        <option value="lottie">Lottie Animated</option>
+                        <option value="anime">Anime Style</option>
+                        <option value="comic">Comic Book</option>
+                    </select>
+                </div>
+                
+                <div class="form-group">
+                    <label>⏱️ Duration</label>
+                    <select id="duration">
+                        <option value="30">30 seconds</option>
+                        <option value="60" selected>1 minute</option>
+                        <option value="120">2 minutes</option>
+                        <option value="180">3 minutes</option>
+                    </select>
+                </div>
+                
+                <div class="form-group">
+                    <label>🎙️ Voiceover</label>
+                    <select id="voice">
+                        <option value="en-US-ChristopherNeural">Christopher (US)</option>
+                        <option value="en-GB-SoniaNeural">Sonia (UK)</option>
+                        <option value="en-AU-NatashaNeural">Natasha (AU)</option>
+                        <option value="none">No Voiceover</option>
+                    </select>
+                </div>
+            </div>
+            
+            <button type="submit" class="generate-btn" id="generateBtn">
+                🎬 Generate Animation
+            </button>
+        </form>
+        
+        <div class="progress-container" id="progressContainer">
+            <div class="progress-bar">
+                <div class="progress-fill" id="progressFill"></div>
+            </div>
+            <p class="status-text" id="statusText">Initializing...</p>
+        </div>
+        
+        <div class="result-container" id="resultContainer">
+            <video class="video-preview" id="videoPreview" controls></video>
+            <br>
+            <a href="#" class="download-btn" id="downloadBtn" download>📥 Download MP4</a>
+            <a href="#" class="download-btn" id="newBtn" style="background: linear-gradient(135deg, #3498db 0%, #2980b9 100%);">🔄 New Animation</a>
+        </div>
+        
+        <div class="error-msg" id="errorMsg" style="display: none;"></div>
+        
+        <div class="examples">
+            <h3>💡 Quick Examples</h3>
+            <span class="example-btn" data-prompt="A Roman gladiator entering the Colosseum arena, dramatic lighting, crowd cheering, slow motion push-in camera">Gladiator Arena</span>
+            <span class="example-btn" data-prompt="A spaceship landing on Mars, red dust swirling, dramatic sunset, cinematic wide shot">Mars Landing</span>
+            <span class="example-btn" data-prompt="Ancient Egyptian pyramid construction, workers pulling stones, golden hour lighting, aerial view">Pyramid Build</span>
+            <span class="example-btn" data-prompt="A samurai warrior meditating under a cherry blossom tree, petals falling, peaceful atmosphere">Samurai Zen</span>
+            <span class="example-btn" data-prompt="Underwater scene showing a giant squid swimming through a sunken ship, bioluminescent creatures, deep blue lighting">Deep Sea</span>
+        </div>
+        
+        <p class="powered">Powered by Hermes Agent • Blender MCP • Cloud Rendering</p>
+    </div>
+    
+    <script>
+        const form = document.getElementById('generateForm');
+        const generateBtn = document.getElementById('generateBtn');
+        const progressContainer = document.getElementById('progressContainer');
+        const progressFill = document.getElementById('progressFill');
+        const statusText = document.getElementById('statusText');
+        const resultContainer = document.getElementById('resultContainer');
+        const videoPreview = document.getElementById('videoPreview');
+        const downloadBtn = document.getElementById('downloadBtn');
+        const newBtn = document.getElementById('newBtn');
+        const errorMsg = document.getElementById('errorMsg');
+        
+        // Example buttons
+        document.querySelectorAll('.example-btn').forEach(btn => {
+            btn.addEventListener('click', () => {
+                document.getElementById('prompt').value = btn.dataset.prompt;
+            });
+        });
+        
+        // Form submission
+        form.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            
+            const prompt = document.getElementById('prompt').value.trim();
+            if (!prompt) {
+                showError('Please enter an animation prompt');
+                return;
+            }
+            
+            const style = document.getElementById('style').value;
+            const duration = document.getElementById('duration').value;
+            const voice = document.getElementById('voice').value;
+            
+            // Show progress
+            generateBtn.disabled = true;
+            generateBtn.textContent = '⏳ Generating...';
+            progressContainer.style.display = 'block';
+            resultContainer.style.display = 'none';
+            errorMsg.style.display = 'none';
+            
+            // Simulate progress (real implementation would poll server)
+            let progress = 0;
+            const stages = [
+                'Initializing cloud renderer...',
+                'Building 3D scene...',
+                'Setting up camera movements...',
+                'Rendering frames...',
+                'Adding voiceover...',
+                'Stitching final video...'
+            ];
+            let stageIdx = 0;
+            
+            const progressInterval = setInterval(() => {
+                progress += Math.random() * 5 + 2;
+                if (progress > 100) progress = 100;
+                progressFill.style.width = progress + '%';
+                
+                if (progress > (stageIdx + 1) * 16 && stageIdx < stages.length) {
+                    statusText.textContent = stages[stageIdx];
+                    stageIdx++;
+                }
+            }, 800);
+            
+            try {
+                // Call the backend API
+                const response = await fetch('/api/generate', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ prompt, style, duration, voice })
+                });
+                
+                const data = await response.json();
+                
+                clearInterval(progressInterval);
+                progressFill.style.width = '100%';
+                statusText.textContent = '✅ Complete!';
+                
+                if (data.success) {
+                    // Show result
+                    setTimeout(() => {
+                        progressContainer.style.display = 'none';
+                        resultContainer.style.display = 'block';
+                        videoPreview.src = data.video_url;
+                        downloadBtn.href = data.video_url;
+                        downloadBtn.download = data.filename || 'animation.mp4';
+                    }, 500);
+                } else {
+                    showError(data.error || 'Generation failed');
+                }
+            } catch (err) {
+                clearInterval(progressInterval);
+                showError('Connection error: ' + err.message);
+            }
+            
+            generateBtn.disabled = false;
+            generateBtn.textContent = '🎬 Generate Animation';
+        });
+        
+        function showError(msg) {
+            errorMsg.textContent = '⚠️ ' + msg;
+            errorMsg.style.display = 'block';
+            progressContainer.style.display = 'none';
+        }
+        
+        newBtn.addEventListener('click', () => {
+            resultContainer.style.display = 'none';
+            document.getElementById('prompt').value = '';
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+        });
+    </script>
+</body>
+</html>
