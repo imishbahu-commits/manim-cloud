@@ -1,0 +1,51 @@
+name: Render Manim
+
+# Triggers:
+#  1. The "Run workflow" button on GitHub (Actions tab) — easiest on phone
+#  2. Every push that adds/changes a scene file in scenes/
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - 'scenes/**'
+
+jobs:
+  render:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install manim
+        run: pip install --quiet manim
+
+      # Uncomment the next step if you use MathTex (math equations) in your scenes.
+      # It installs LaTeX (~5 min extra) and makes equations render properly.
+      # - name: Install LaTeX (needed for MathTex equations)
+      #   run: sudo apt-get update && sudo apt-get install -y texlive-latex-extra texlive-fonts-recommended
+
+      - name: Render all scenes
+        run: |
+          mkdir -p output
+          for f in scenes/*.py; do
+            echo "=== Rendering $f ==="
+            manim -qm "$f" --media_dir output/media || manim -ql "$f" --media_dir output/media
+          done
+
+      - name: Collect videos
+        run: |
+          find output/media -name '*.mp4' -exec cp {} output/ \;
+          ls -la output/
+
+      - name: Upload videos (download from this run page)
+        uses: actions/upload-artifact@v4
+        with:
+          name: manim-videos
+          path: output/*.mp4
+          if-no-files-found: error
