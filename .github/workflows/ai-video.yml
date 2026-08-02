@@ -1,0 +1,56 @@
+name: AI Video Studio
+
+# The "director brain" pipeline: manim scenes + free AI voiceover + ffmpeg mix
+# → a complete narrated animated video, all on free GitHub cloud.
+#
+# How to use (phone browser):
+#   Repo → Actions → "AI Video Studio" → Run workflow →
+#   type the video name (must exist as videos/<name>/ with scenes.py + narration.txt)
+on:
+  workflow_dispatch:
+    inputs:
+      video_name:
+        description: 'Video name (folder under videos/, e.g. demo)'
+        required: true
+        default: 'demo'
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install system libraries (manim + ffmpeg)
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ffmpeg libcairo2-dev libpango1.0-dev \
+            libgirepository1.0-dev pkg-config python3-dev
+
+      - name: Install manim + edge-tts (free AI voices)
+        run: pip install --quiet manim edge-tts
+
+      - name: Render scenes
+        run: |
+          mkdir -p output
+          manim -qm "videos/${{ github.event.inputs.video_name }}/scenes.py" \
+            --media_dir media || manim -ql "videos/${{ github.event.inputs.video_name }}/scenes.py" --media_dir media
+          find media -name '*.mp4' | sort
+
+      - name: Generate voiceover + assemble video
+        run: |
+          python3 scripts/build_video.py "${{ github.event.inputs.video_name }}"
+          cp output/final.mp4 output/final.mp4.bak 2>/dev/null || true
+
+      - name: Upload final video
+        uses: actions/upload-artifact@v4
+        with:
+          name: final-video
+          path: output/final.mp4
+          if-no-files-found: error
