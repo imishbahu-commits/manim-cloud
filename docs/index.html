@@ -1,0 +1,377 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Hermes Blender Animation Studio</title>
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(135deg, #0f0c29 0%, #302b63 50%, #24243e 100%);
+            color: #e8e8e8;
+            min-height: 100vh;
+            padding: 20px;
+        }
+        
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+            background: rgba(255,255,255,0.05);
+            border-radius: 20px;
+            padding: 30px;
+            box-shadow: 0 8px 32px rgba(0,0,0,0.4);
+            border: 1px solid rgba(255,255,255,0.1);
+        }
+        
+        h1 {
+            text-align: center;
+            margin-bottom: 8px;
+            font-size: 2em;
+            background: linear-gradient(90deg, #f39c12, #e74c3c, #9b59b6);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+        
+        .subtitle { text-align: center; color: #aaa; margin-bottom: 25px; font-size: 0.95em; }
+        
+        .form-group { margin-bottom: 18px; }
+        
+        label { display: block; margin-bottom: 6px; font-weight: 600; color: #f39c12; font-size: 0.9em; }
+        
+        textarea, input[type="text"], select {
+            width: 100%;
+            padding: 12px;
+            border: 2px solid rgba(255,255,255,0.1);
+            border-radius: 10px;
+            background: rgba(0,0,0,0.3);
+            color: #fff;
+            font-size: 14px;
+            font-family: inherit;
+        }
+        
+        textarea { min-height: 120px; resize: vertical; }
+        textarea:focus, input:focus, select:focus { outline: none; border-color: #f39c12; }
+        
+        .settings-row { display: grid; grid-template-columns: repeat(3, 1fr); gap: 15px; }
+        @media (max-width: 600px) { .settings-row { grid-template-columns: 1fr; } }
+        
+        .generate-btn {
+            width: 100%;
+            padding: 16px;
+            background: linear-gradient(135deg, #f39c12 0%, #e74c3c 100%);
+            border: none;
+            border-radius: 12px;
+            color: white;
+            font-size: 1.1em;
+            font-weight: bold;
+            cursor: pointer;
+            margin-top: 10px;
+        }
+        
+        .generate-btn:disabled { background: #555; cursor: not-allowed; }
+        
+        .progress-box {
+            margin-top: 25px;
+            padding: 20px;
+            background: rgba(0,0,0,0.3);
+            border-radius: 12px;
+            display: none;
+        }
+        
+        .progress-bar { height: 16px; background: rgba(0,0,0,0.3); border-radius: 8px; overflow: hidden; margin-bottom: 12px; }
+        .progress-fill { height: 100%; background: linear-gradient(90deg, #f39c12, #2ecc71); width: 0%; transition: width 0.5s; }
+        .status-text { text-align: center; color: #aaa; font-size: 0.9em; }
+        
+        .result-box { margin-top: 25px; padding: 20px; background: rgba(46, 204, 113, 0.1); border-radius: 12px; display: none; }
+        .result-box video { width: 100%; border-radius: 10px; margin-bottom: 15px; background: #000; }
+        
+        .dl-btn {
+            display: inline-block;
+            padding: 12px 24px;
+            background: linear-gradient(135deg, #2ecc71, #27ae60);
+            color: white;
+            text-decoration: none;
+            border-radius: 10px;
+            margin: 5px;
+            font-weight: bold;
+        }
+        
+        .examples { margin-top: 25px; padding: 15px; background: rgba(0,0,0,0.2); border-radius: 12px; }
+        .examples h3 { margin-bottom: 12px; color: #f39c12; font-size: 1em; }
+        .example-btn {
+            display: inline-block;
+            padding: 6px 14px;
+            margin: 4px 4px 4px 0;
+            background: rgba(255,255,255,0.1);
+            border: 1px solid rgba(255,255,255,0.2);
+            border-radius: 18px;
+            color: #fff;
+            cursor: pointer;
+            font-size: 0.85em;
+        }
+        .example-btn:hover { background: rgba(255,255,255,0.2); }
+        
+        .status-pill {
+            display: inline-block;
+            padding: 4px 10px;
+            border-radius: 12px;
+            font-size: 0.75em;
+            font-weight: bold;
+        }
+        .status-pill.live { background: #2ecc71; color: #000; }
+        .status-pill.building { background: #f39c12; color: #000; }
+        .status-pill.error { background: #e74c3c; color: #fff; }
+        
+        .repo-info {
+            text-align: center;
+            margin-top: 20px;
+            font-size: 0.8em;
+            color: #777;
+        }
+        .repo-info a { color: #3498db; }
+        
+        .config-notice {
+            padding: 12px;
+            background: rgba(243, 156, 18, 0.1);
+            border-radius: 10px;
+            margin-bottom: 20px;
+            font-size: 0.85em;
+            color: #f39c12;
+            display: none;
+        }
+   </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🎬 Hermes Animation Studio</h1>
+        <p class="subtitle">Prompt → Cloud render → Video <span class="status-pill live">● LIVE</span</p>
+        
+        <div class="config-notice" id="configNotice">
+            ⚠️ Configure GitHub token in Settings (top right ⚙️) to enable generation.
+       </div>
+        
+        <form id="generateForm">
+            <div class="form-group">
+                <label>📝 Your Animation Prompt</label>
+                <textarea id="prompt" placeholder="Describe your animation...
+
+Examples:
+• A gladiator walks into the Roman Colosseum, dramatic push-in camera, crowd cheering
+• Astronaut floating in space, Earth in background, slow rotation
+• Ancient Egyptian pyramid construction, workers pulling massive stones</textarea>
+           </div>
+            
+            <div class="settings-row">
+                <div class="form-group">
+                    <label>🎨 Style</label>
+                    <select id="style">
+                        <option value="oversimplified">OverSimplified (2D</option>
+                        <option value="3d">3D Blender</option>
+                        <option value="lottie">Lottie (vector</option>
+                        <option value="comic">Comic Book</option>
+                        <option value="anime">Anime</option>
+                   </select>
+               </div>
+                
+                <div class="form-group">
+                    <label>⏱️ Duration</label>
+                    <select id="duration">
+                        <option value="30">30s</option>
+                        <option value="60" selected>1 min</option>
+                        <option value="120">2 min</option>
+                   </select>
+               </div>
+                
+                <div class="form-group">
+                    <label>🎙️ Voice</label>
+                    <select id="voice">
+                        <option value="Christopher">Christopher</option>
+                        <option value="Sonia">Sonia</option>
+                        <option value="Natasha">Natasha</option>
+                        <option value="none">Silent</option>
+                   </select>
+               </div>
+           </div>
+            
+            <div class="form-group">
+                <label>🔑 GitHub Personal Access Token</label>
+                <input type="text" id="githubToken" placeholder="ghp_..." />
+           </div>
+            
+            <button type="submit" class="generate-btn" id="generateBtn">
+                🎬 Generate Animation
+           </button>
+       </form>
+        
+        <div class="progress-box" id="progressBox">
+            <div class="progress-bar"><div class="progress-fill" id="progressFill</div</div>
+            <p class="status-text" id="statusText">Initializing</p>
+       </div>
+        
+        <div class="result-box" id="resultBox">
+            <video id="videoEl" controls</video>
+            <div style="text-align:center">
+                <a href="#" class="dl-btn" id="dlBtn" download>📥 Download MP4</a>
+                <a href="#" class="dl-btn" style="background: linear-gradient(135deg, #3498db, #2980b9);" onclick="location.reload()">🔄 New</a>
+           </div>
+       </div>
+        
+        <div class="examples">
+            <h3>💡 Quick Examples (click to use</h3>
+            <span class="example-btn" data-prompt="A Roman gladiator enters the Colosseum arena, dramatic lighting, slow push-in camera, sand swirling">Gladiator Arena</span>
+            <span class="example-btn" data-prompt="Astronaut floating in deep space with Earth in the background, slow rotation, stars twinkling">Space Walk</span>
+            <span class="example-btn" data-prompt="A samurai warrior meditating under a cherry blossom tree, petals falling, peaceful atmosphere">Samurai Zen</span>
+            <span class="example-btn" data-prompt="Viking longship sailing through a storm, lightning, dramatic waves, cinematic wide shot">Viking Storm</span>
+            <span class="example-btn" data-prompt="Massive army of soldiers marching across desert, dust clouds, aerial camera shot">Epic Battle</span>
+            <span class="example-btn" data-prompt="Dragon flying over medieval castle, breathing fire, dramatic sunset sky">Dragon Castle</span>
+       </div>
+        
+        <div class="repo-info">
+            <a href="https://github.com/imishbahu-commits/manim-cloud/actions" target="_blank">View Workflow Runs →</a>
+       </div>
+   </div>
+    
+    <script>
+        // Load saved token
+        const savedToken = localStorage.getItem('gh_token');
+        if (savedToken) document.getElementById('githubToken').value = savedToken;
+        
+        // Example buttons
+        document.querySelectorAll('.example-btn').forEach(btn => {
+            btn.addEventListener('click', () => {
+                document.getElementById('prompt').value = btn.dataset.prompt;
+            });
+        });
+        
+        const WORKFLOWS = {
+            'oversimplified': 'ai-animation.yml',
+            '3d': 'blender-video.yml',
+            'lottie': 'ai-video.yml',
+            'comic': 'ai-animation.yml',
+            'anime': 'ai-animation.yml',
+        };
+        
+        document.getElementById('generateForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            
+            const prompt = document.getElementById('prompt').value.trim();
+            const style = document.getElementById('style').value;
+            const duration = document.getElementById('duration').value;
+            const voice = document.getElementById('voice').value;
+            const token = document.getElementById('githubToken').value.trim();
+            
+            if (!prompt) return alert('Please enter a prompt');
+            if (!token) return alert('Please enter your GitHub token (get one from Settings → Developer settings → Personal access tokens)');
+            
+            localStorage.setItem('gh_token', token);
+            
+            const btn = document.getElementById('generateBtn');
+            btn.disabled = true;
+            btn.textContent = '⏳ Triggering cloud render...';
+            document.getElementById('progressBox').style.display = 'block';
+            document.getElementById('resultBox').style.display = 'none';
+            
+            const workflow = WORKFLOWS[style] || 'ai-animation.yml';
+            
+            try {
+                // Trigger workflow
+                const triggerResp = await fetch(
+                    'https://api.github.com/repos/imishbahu-commits/manim-cloud/actions/workflows/' + workflow + '/dispatches',
+                    {
+                        method: 'POST',
+                        headers: {
+                            'Authorization': 'Bearer ' + token,
+                            'Accept': 'application/vnd.github.v3+json',
+                            'Content-Type': 'application/json',
+                        },
+                        body: JSON.stringify({
+                            ref: 'main',
+                            inputs: { topic: prompt.substring(0, 80) }
+                        })
+                    }
+                );
+                
+                if (triggerResp.status !== 204) {
+                    throw new Error('GitHub API error: ' + triggerResp.status);
+                }
+                
+                document.getElementById('statusText').textContent = '✓ Workflow triggered! Polling status...';
+                
+                // Poll for completion
+                let progress = 10;
+                const stages = ['Building scene...', 'Rendering frames...', 'Adding voiceover...', 'Stitching video...'];
+                let stageIdx = 0;
+                
+                const pollInterval = setInterval(async () => {
+                    progress = Math.min(progress + 3, 95);
+                    document.getElementById('progressFill').style.width = progress + '%';
+                    if (progress > (stageIdx + 1) * 20 && stageIdx < stages.length) {
+                        document.getElementById('statusText').textContent = stages[stageIdx];
+                        stageIdx++;
+                    }
+                }, 4000);
+                
+                // Poll for completed run
+                for (let i = 0; i < 60; i++) {
+                    await new Promise(r => setTimeout(r, 5000));
+                    
+                    const runsResp = await fetch(
+                        'https://api.github.com/repos/imishbahu-commits/manim-cloud/actions/runs?per_page=1&event=workflow_dispatch',
+                        {
+                            headers: {
+                                'Authorization': 'Bearer ' + token,
+                                'Accept': 'application/vnd.github.v3+json',
+                            }
+                        }
+                    );
+                    const runsData = await runsResp.json();
+                    const run = runsData.workflow_runs && runsData.workflow_runs[0];
+                    
+                    if (run && run.status === 'completed') {
+                        clearInterval(pollInterval);
+                        document.getElementById('progressFill').style.width = '100%';
+                        
+                        if (run.conclusion === 'success') {
+                            // Get artifact
+                            const artResp = await fetch(
+                                'https://api.github.com/repos/imishbahu-commits/manim-cloud/actions/runs/' + run.id + '/artifacts',
+                                {
+                                    headers: {
+                                        'Authorization': 'Bearer ' + token,
+                                        'Accept': 'application/vnd.github.v3+json',
+                                    }
+                                }
+                            );
+                            const artData = await artResp.json();
+                            const videoArt = (artData.artifacts || []).find(a => a.name.includes('video') || a.name.includes('final'));
+                            
+                            if (videoArt) {
+                                // For artifact download, we need to redirect via a proxy or use the URL directly
+                                const dlUrl = `https://github.com/imishbahu-commits/manim-cloud/actions/runs/${run.id}/artifacts/${videoArt.id}`;
+                                
+                                document.getElementById('statusText').textContent = '✅ Complete!';
+                                document.getElementById('progressBox').style.display = 'none';
+                                document.getElementById('resultBox').style.display = 'block';
+                                document.getElementById('dlBtn').href = dlUrl;
+                            } else {
+                                document.getElementById('statusText').textContent = '✅ Build success - artifact ready in Actions tab';
+                            }
+                        } else {
+                            document.getElementById('statusText').innerHTML = '❌ Build failed. <a href="' + run.html_url + '" target="_blank" style="color:#3498db">View logs</a>';
+                        }
+                        break;
+                    }
+                }
+                
+            } catch (err) {
+                alert('Error: ' + err.message);
+            }
+            
+            btn.disabled = false;
+            btn.textContent = '🎬 Generate Animation';
+        });
+   </script>
+</body>
+</html>
