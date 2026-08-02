@@ -108,7 +108,11 @@ def gladiator(name, loc, scale=1.0, tunic=TUNIC, helmet=1):
     parts.append(cyl(f"{name}_armR", 0.09, 0.5, (x + 0.30, y, z + 0.78), SKIN, rot=(0, -0.5, 0)))
     parts.append(sphere(f"{name}_head", 0.19, (x, y, z + 1.18), SKIN, subdiv=1))
     if helmet:
-        parts.append(sphere(f"{name}_helm", 0.22, (x, y, z + 1.22), METAL, metal=0.6, subdiv=1))
+        parts.append(sphere(f"{name}_helm", 0.22, (x, y, z + 1.22), METAL, subdiv=1))
+        # Set metallic on the material after creation
+        helm_obj = parts[-1]
+        if helm_obj.data.materials:
+            helm_obj.data.materials[0].node_tree.nodes["Principled BSDF"].inputs["Metallic"].default_value = 0.6
         parts.append(cyl(f"{name}_plume", 0.05, 0.35, (x, y, z + 1.42), RED))
     for p in parts:
         p.scale = (scale, scale, scale)
